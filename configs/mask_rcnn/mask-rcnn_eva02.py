@@ -10,7 +10,7 @@ custom_imports = dict(imports=['mmpretrain.models'], allow_failed_imports=False)
 # Dataset setup
 # ------------------------------------------------------------
 dataset_type = 'CocoDataset' # Define the dataset type (COCO format)
-data_root = './ballondatasets/balloon/' # Root directory for the balloon dataset
+data_root = '../datasets/ballondatasets/balloon/' # Root directory for the balloon dataset
 
 metainfo = {  # Meta information: class names and color palette for visualization
     'classes': ('balloon',),  # Only one class: balloon
@@ -22,6 +22,12 @@ train_pipeline = [  # Training data processing pipeline
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),  # Load bounding box and mask annotations
     dict(type='Resize', scale=(224, 224), keep_ratio=False),  # Resize image to 224x224, do not keep aspect ratio
     dict(type='RandomFlip', prob=0.5),  # Randomly flip image horizontally with 50% probability
+    dict(type='RandomFlip', prob=0.5, direction='vertical'),  # Randomly flip image vertically with 50% probability
+    dict(type='PhotoMetricDistortion',  # Apply photometric distortions
+        brightness_delta=32,
+        contrast_range=(0.75, 1.25),
+        saturation_range=(0.75, 1.25),
+        hue_delta=18),
     dict(type='PackDetInputs')  # Format data for model input
 ]
 
@@ -105,7 +111,7 @@ model = dict(
         final_norm=True,  # Apply final normalization
         out_type='featmap',  # Output feature map
         out_indices=(11,),  # Use last layer output
-        frozen_stages=-1,  # Unfreeze all stages (trainable)
+        frozen_stages=-1,  # Do not freeze any stages
         init_cfg=dict(
             type='Pretrained',
             checkpoint='https://download.openmmlab.com/mmpretrain/v1.0/eva02/eva02-tiny-p14_pre_in21k_20230505-d703e7b1.pth',
@@ -238,7 +244,7 @@ optim_wrapper = dict(
         type='AdamW',  # AdamW optimizer (Adam with decoupled weight decay)
         lr=0.0001,  # Lower learning rate for stability (especially for ViT backbones)
         betas=(0.9, 0.999),  # AdamW beta parameters
-        weight_decay=0.05  # Weight decay for regularization
+        weight_decay=0.1  # Weight decay for regularization
     ),
     paramwise_cfg=dict(
         custom_keys={
@@ -258,12 +264,11 @@ param_scheduler = [
         begin=0,  # Start from the first iteration
         end=500),  # Warmup for 500 iterations
     dict(
-        type='MultiStepLR',  # Multi-step LR decay
-        begin=0,  # Start from epoch 0
-        end=50,  # End at epoch 50 (if training longer, stays at last LR)
-        by_epoch=True,  # Decay by epoch
-        milestones=[35, 45],  # Decay LR at epochs 35 and 45
-        gamma=0.1)  # LR is multiplied by 0.1 at each milestone
+        type='CosineAnnealingLR',  # Cosine annealing learning rate decay
+        begin=0, # Start from the beginning of training
+        end=100, # End at 100 epochs
+        by_epoch=True, # Decay by epoch
+        eta_min_ratio=0.01) # Minimum LR is 1% of base LR
 ]
 
 # ------------------------------------------------------------
@@ -284,6 +289,12 @@ default_hooks = dict(
     timer=dict(type='IterTimerHook'),  # Measure iteration time
     logger=dict(type='LoggerHook', interval=10),  # Log training info every 10 iterations
     param_scheduler=dict(type='ParamSchedulerHook'),  # Update learning rate scheduler
+    early_stopping=dict(
+        type='EarlyStoppingHook',
+        monitor='coco/segm_mAP',
+        patience=30,  # Stop if no improvement for 30 epochs
+        rule='greater'
+    ),
     checkpoint=dict(
         type='CheckpointHook',
         interval=5,  # Save checkpoint every 5 epochs
@@ -328,7 +339,7 @@ env_cfg = dict(
     ),
     dist_cfg=dict(backend='nccl')  # Distributed backend (NCCL for GPUs)
 )
-work_dir = './tutorial_exps_viteva02_balloon_fixed'  # Directory to save logs and checkpoints
+work_dir = './exps'  # Directory to save logs and checkpoints
 load_from = None  # Path to load checkpoint for fine-tuning (None to train from scratch)
 resume = False  # Whether to resume training from the latest checkpoint
 auto_scale_lr = dict(
