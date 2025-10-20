@@ -21,3 +21,6 @@ mim install "mmcv>=2.0.0,<2.2.0"
 
 # Install mmdetection
 pip install -v -e .
+
+# Install mmpretrain
+pip install mmpretrain
