@@ -255,7 +255,7 @@ optim_wrapper = dict(
     clip_grad=dict(max_norm=35, norm_type=2)  # Gradient clipping to avoid exploding gradients
 )
 
-# Warmup + Step decay schedule
+# Warmup + Cosine annealing schedule
 param_scheduler = [
     dict(
         type='LinearLR',  # Linear learning rate warmup
