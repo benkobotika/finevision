@@ -32,7 +32,7 @@ metainfo = dict(  # Meta information: COCO has 80 object classes
 train_pipeline = [  # Training data processing pipeline
     dict(type='LoadImageFromFile', backend_args=None),  # Load image from file
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),  # Load bounding box and mask annotations
-    dict(type='Resize', scale=(640, 480), keep_ratio=True),  # Resize image to 640x480, keep aspect ratio
+    dict(type='Resize', scale=(640, 480), keep_ratio=False),  # Resize to 640x480
     dict(type='RandomFlip', prob=0.5),  # Randomly flip image horizontally with 50% probability
     dict(type='RandomFlip', prob=0.5, direction='vertical'),  # Randomly flip image vertically with 50% probability
     dict(type='PhotoMetricDistortion',  # Apply photometric distortions
@@ -45,7 +45,7 @@ train_pipeline = [  # Training data processing pipeline
 
 test_pipeline = [  # Test data processing pipeline
     dict(type='LoadImageFromFile', backend_args=None),  # Load image from file
-    dict(type='Resize', scale=(640, 480), keep_ratio=True),  # Resize image to 640x480, keep aspect ratio
+    dict(type='Resize', scale=(640, 480), keep_ratio=False),  # Resize to 640x480
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),  # Load bounding box and mask annotations
     dict(
         type='PackDetInputs',
@@ -304,7 +304,7 @@ default_hooks = dict(
     early_stopping=dict(
         type='EarlyStoppingHook',
         monitor='coco/segm_mAP',
-        patience=5,  # Stop if no improvement for 5 epochs
+        patience=10,  # Stop if no improvement for 10 epochs
         rule='greater'
     ),
     checkpoint=dict(
