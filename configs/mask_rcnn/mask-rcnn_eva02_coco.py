@@ -32,14 +32,15 @@ metainfo = dict(  # Meta information: COCO has 80 object classes
 train_pipeline = [  # Training data processing pipeline
     dict(type='LoadImageFromFile', backend_args=None),  # Load image from file
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),  # Load bounding box and mask annotations
-    dict(type='Resize', scale=(640, 480), keep_ratio=False),  # Resize to 640x480
+    dict(type='RandomChoiceResize',  # Resize to one of several scales
+        scales=[(512, 384), (576, 432), (640, 480), (704, 528), (768, 576)],
+        keep_ratio=False),
     dict(type='RandomFlip', prob=0.5),  # Randomly flip image horizontally with 50% probability
-    dict(type='RandomFlip', prob=0.5, direction='vertical'),  # Randomly flip image vertically with 50% probability
-    dict(type='PhotoMetricDistortion',  # Apply photometric distortions
-        brightness_delta=32,
-        contrast_range=(0.75, 1.25),
-        saturation_range=(0.75, 1.25),
-        hue_delta=18),
+    dict(type='PhotoMetricDistortion',
+        brightness_delta=40,
+        contrast_range=(0.6, 1.4),
+        saturation_range=(0.6, 1.4),
+        hue_delta=20),
     dict(type='PackDetInputs')  # Format data for model input
 ]
 
@@ -148,7 +149,7 @@ model = dict(
         feat_channels=256,
         anchor_generator=dict(
             type='AnchorGenerator',
-            scales=[2, 4, 8, 16],  # Multiple scales for better detection
+            scales=[4, 8, 16, 32],  # Multiple scales for better detection
             ratios=[0.5, 1.0, 2.0],  # Anchor aspect ratios
             strides=[14]),  # Match patch size
         bbox_coder=dict(
@@ -225,8 +226,8 @@ model = dict(
                 ignore_iof_thr=-1),
             sampler=dict(
                 type='RandomSampler',
-                num=512,  # Number of RoIs per image
-                pos_fraction=0.25,  # Fraction of positive RoIs
+                num=768,  # Number of RoIs per image
+                pos_fraction=0.33,  # Fraction of positive RoIs
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
             mask_size=28,  # Output mask size
@@ -251,7 +252,7 @@ model = dict(
 # Optimization
 # ------------------------------------------------------------
 optim_wrapper = dict(
-    type='OptimWrapper',  # Use the standard optimizer wrapper
+    type='AmpOptimWrapper',  # Use the standard optimizer wrapper
     optimizer=dict(
         type='AdamW',  # AdamW optimizer (Adam with decoupled weight decay)
         lr=0.0001,  # Lower learning rate for stability (especially for ViT backbones)
@@ -264,10 +265,10 @@ optim_wrapper = dict(
             'norm': dict(decay_mult=0.0),  # No weight decay for normalization layers (e.g., LayerNorm, GroupNorm)
         }
     ),
-    clip_grad=dict(max_norm=35, norm_type=2)  # Gradient clipping to avoid exploding gradients
+    clip_grad=dict(max_norm=35, norm_type=2),  # Gradient clipping to avoid exploding gradients
+    loss_scale='dynamic'  # Dynamic loss scaling for FP16
 )
 
-# Warmup + Cosine annealing schedule
 param_scheduler = [
     dict(
         type='LinearLR',  # Linear learning rate warmup
@@ -276,11 +277,12 @@ param_scheduler = [
         begin=0,  # Start from the first iteration
         end=1000),  # Warmup for 1000 iterations
     dict(
-        type='CosineAnnealingLR',  # Cosine annealing learning rate decay
-        begin=0, # Start from the beginning of training
-        end=24, # End at 24 epochs
-        by_epoch=True, # Decay by epoch
-        eta_min_ratio=0.01) # Minimum LR is 1% of base LR
+        type='MultiStepLR',  # MultiStep learning rate decay
+        begin=0,
+        end=36,  # End at 36 epochs
+        by_epoch=True,
+        milestones=[24, 32],  # Decay at epochs 24 and 32
+        gamma=0.1) # Decay LR by a factor of 10 at each milestone
 ]
 
 # ------------------------------------------------------------
@@ -288,8 +290,8 @@ param_scheduler = [
 # ------------------------------------------------------------
 train_cfg = dict(
     type='EpochBasedTrainLoop',  # Use epoch-based training loop
-    max_epochs=24,  # Train for 24 epochs
-    val_interval=1  # Run validation every epoch
+    max_epochs=36,  # Train for 36 epochs
+    val_interval=2  # Run validation every 2 epochs
 )
 val_cfg = dict(type='ValLoop')  # Standard validation loop
 test_cfg = dict(type='TestLoop')  # Standard test loop
@@ -301,15 +303,15 @@ default_hooks = dict(
     timer=dict(type='IterTimerHook'),  # Measure iteration time
     logger=dict(type='LoggerHook', interval=50),  # Log training info every 50 iterations
     param_scheduler=dict(type='ParamSchedulerHook'),  # Update learning rate scheduler
-    early_stopping=dict(
-        type='EarlyStoppingHook',
-        monitor='coco/segm_mAP',
-        patience=10,  # Stop if no improvement for 10 epochs
-        rule='greater'
-    ),
+    # early_stopping=dict(
+    #     type='EarlyStoppingHook',
+    #     monitor='coco/segm_mAP',
+    #     patience=10,  # Stop if no improvement for 10 epochs
+    #     rule='greater'
+    # ),
     checkpoint=dict(
         type='CheckpointHook',
-        interval=1,  # Save checkpoint every epoch
+        interval=2,  # Save checkpoint every 2 epochs
         max_keep_ckpts=5,  # Keep the latest 5 checkpoints
         save_best='coco/segm_mAP',  # Save the best checkpoint based on mask mAP
         rule='greater'
