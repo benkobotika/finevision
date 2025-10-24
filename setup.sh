@@ -24,3 +24,7 @@ pip install -v -e .
 
 # Install mmpretrain
 pip install mmpretrain
+
+# Install other dependencies
+pip install future tensorboard
+pip install ipykernel
