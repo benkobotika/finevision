@@ -33,7 +33,7 @@ train_pipeline = [  # Training data processing pipeline
     dict(type='LoadImageFromFile', backend_args=None),  # Load image from file
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),  # Load bounding box and mask annotations
     dict(type='RandomChoiceResize',  # Resize to one of several scales
-        scales=[(512, 384), (576, 432), (640, 480), (704, 528), (768, 576)],
+        scales=[(480, 360), (512, 384), (576, 432), (640, 480), (704, 528), (768, 576), (832, 624)],
         keep_ratio=False),
     dict(type='RandomFlip', prob=0.5),  # Randomly flip image horizontally with 50% probability
     dict(type='PhotoMetricDistortion',
@@ -150,7 +150,7 @@ model = dict(
         feat_channels=256,
         anchor_generator=dict(
             type='AnchorGenerator',
-            scales=[4, 8, 16, 32],  # Multiple scales for better detection
+            scales=[2, 4, 8, 16, 32],  # Multiple scales for better detection
             ratios=[0.5, 1.0, 2.0],  # Anchor aspect ratios
             strides=[14]),  # Match patch size
         bbox_coder=dict(
@@ -171,7 +171,7 @@ model = dict(
         bbox_head=dict(
             type='Shared2FCBBoxHead',
             in_channels=256,
-            fc_out_channels=1024,
+            fc_out_channels=2048,
             roi_feat_size=7,
             num_classes=80,  # COCO has 80 classes
             bbox_coder=dict(
@@ -179,6 +179,7 @@ model = dict(
                 target_means=[0., 0., 0., 0.],
                 target_stds=[0.1, 0.1, 0.2, 0.2]),
             reg_class_agnostic=False,
+            norm_cfg=dict(type='GN'),  # GroupNorm for stability
             loss_cls=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),  # RoI classification loss
             loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0)  # RoI bbox regression loss
         ),
@@ -189,10 +190,11 @@ model = dict(
             featmap_strides=[14]),  # Match stride to patch size
         mask_head=dict(
             type='FCNMaskHead',
-            num_convs=4,  # Number of conv layers in mask head
+            num_convs=8,  # Number of conv layers in mask head
             in_channels=256,
-            conv_out_channels=256,
+            conv_out_channels=384,
             num_classes=80,  # COCO has 80 classes
+            norm_cfg=dict(type='GN', num_groups=32),  # GroupNorm for stability
             loss_mask=dict(type='CrossEntropyLoss', use_mask=True, loss_weight=1.0)  # Mask loss
         )
     ),
@@ -214,8 +216,8 @@ model = dict(
             pos_weight=-1,
             debug=False),
         rpn_proposal=dict(
-            nms_pre=2000,  # Number of boxes before NMS
-            max_per_img=1000,  # Max proposals per image
+            nms_pre=3000,  # Number of boxes before NMS
+            max_per_img=2000,  # Max proposals per image
             nms=dict(type='nms', iou_threshold=0.7),  # NMS for proposals
             min_bbox_size=0),
         rcnn=dict(
@@ -227,7 +229,7 @@ model = dict(
                 ignore_iof_thr=-1),
             sampler=dict(
                 type='RandomSampler',
-                num=768,  # Number of RoIs per image
+                num=1024,  # Number of RoIs per image
                 pos_fraction=0.33,  # Fraction of positive RoIs
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
@@ -237,14 +239,14 @@ model = dict(
     ),
     test_cfg=dict(
         rpn=dict(
-            nms_pre=1000,  # Number of boxes before NMS at test time
-            max_per_img=1000,  # Max proposals per image
+            nms_pre=2000,  # Number of boxes before NMS at test time
+            max_per_img=2000,  # Max proposals per image
             nms=dict(type='nms', iou_threshold=0.7),  # NMS for proposals
             min_bbox_size=0),
         rcnn=dict(
-            score_thr=0.05,  # Score threshold for final detections
+            score_thr=0.02,  # Score threshold for final detections
             nms=dict(type='nms', iou_threshold=0.5),  # NMS for final detections
-            max_per_img=100,  # Max detections per image
+            max_per_img=200,  # Max detections per image
             mask_thr_binary=0.5)  # Threshold for mask binarization
     )
 )
