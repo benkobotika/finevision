@@ -8,11 +8,8 @@ conda create --name fv python=3.8 -y
 . "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate fv
 
-# Install CUDA toolkit
-conda install cudatoolkit=11.7 -c nvidia -y
-
 # Install PyTorch and related packages
-conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.7 -c pytorch -c nvidia -y
+pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
 
 # Install openmim, mmengine, and mmcv
 pip install -U openmim
